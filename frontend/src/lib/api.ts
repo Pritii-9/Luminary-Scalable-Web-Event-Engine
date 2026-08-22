@@ -7,34 +7,26 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 let accessToken: string | null = null;
 
 export function setToken(token: string | null) {
+  // Keep token in-memory only. Rely on the httpOnly cookie set by the server
+  // for authenticated requests to avoid exposing tokens to XSS via localStorage.
   accessToken = token;
-  if (token) {
-    localStorage.setItem("luminary_token", token);
-  } else {
-    localStorage.removeItem("luminary_token");
-  }
 }
 
 export function getToken(): string | null {
-  if (accessToken) return accessToken;
-  if (typeof window !== "undefined") {
-    accessToken = localStorage.getItem("luminary_token");
-  }
+  // Do not read/restore token from localStorage. The server-set httpOnly
+  // cookie carries authentication for browser requests.
   return accessToken;
 }
 
 export function clearToken() {
   accessToken = null;
-  if (typeof window !== "undefined") {
-    localStorage.removeItem("luminary_token");
-  }
 }
 
 // ---------------------------------------------------------------------------
 // Fetch helper
 // ---------------------------------------------------------------------------
 
-async function apiFetch<T = any>(
+async function apiFetch<T = unknown>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
@@ -43,6 +35,7 @@ async function apiFetch<T = any>(
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
+
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -62,8 +55,11 @@ async function apiFetch<T = any>(
     throw new Error(body.detail || `API error ${res.status}`);
   }
 
-  if (res.status === 204) return null as T;
-  return res.json();
+  if (res.status === 204) {
+    return null as T;
+  }
+
+  return (await res.json()) as T;
 }
 
 // ---------------------------------------------------------------------------
@@ -73,13 +69,28 @@ async function apiFetch<T = any>(
 export interface AuthResponse {
   access_token: string;
   token_type: string;
-  user: { id: number; email: string };
+  user: {
+    id: number;
+    email: string;
+    full_name?: string | null;
+    company_name?: string | null;
+  };
 }
 
-export async function register(email: string, password: string) {
+export async function register(
+  email: string,
+  password: string,
+  fullName?: string,
+  companyName?: string
+) {
   return apiFetch<{ detail: string }>("/api/v1/auth/register", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({
+      email,
+      password,
+      full_name: fullName?.trim() || undefined,
+      company_name: companyName?.trim() || undefined,
+    }),
   });
 }
 
@@ -167,32 +178,40 @@ export async function deleteSite(siteId: string) {
 // Stats API
 // ---------------------------------------------------------------------------
 
-export async function fetchSummary(siteId: string, days = 7) {
-  return apiFetch(`/api/v1/stats/summary?site_id=${siteId}&days=${days}`);
+export type StatsRow = Record<string, string | number | null>;
+
+export interface StatsSummary {
+  pageviews: number;
+  visitors: number;
+  sessions: number;
 }
 
-export async function fetchTimeseries(siteId: string, days = 7) {
-  return apiFetch(`/api/v1/stats/timeseries?site_id=${siteId}&days=${days}`);
+export async function fetchSummary(siteId: string, days = 7): Promise<StatsSummary> {
+  return apiFetch<StatsSummary>(`/api/v1/stats/summary?site_id=${siteId}&days=${days}`);
 }
 
-export async function fetchPages(siteId: string, days = 7) {
-  return apiFetch(`/api/v1/stats/pages?site_id=${siteId}&days=${days}`);
+export async function fetchTimeseries(siteId: string, days = 7): Promise<StatsRow[]> {
+  return apiFetch<StatsRow[]>(`/api/v1/stats/timeseries?site_id=${siteId}&days=${days}`);
 }
 
-export async function fetchReferrers(siteId: string, days = 7) {
-  return apiFetch(`/api/v1/stats/referrers?site_id=${siteId}&days=${days}`);
+export async function fetchPages(siteId: string, days = 7): Promise<StatsRow[]> {
+  return apiFetch<StatsRow[]>(`/api/v1/stats/pages?site_id=${siteId}&days=${days}`);
 }
 
-export async function fetchDevices(siteId: string, days = 7) {
-  return apiFetch(`/api/v1/stats/devices?site_id=${siteId}&days=${days}`);
+export async function fetchReferrers(siteId: string, days = 7): Promise<StatsRow[]> {
+  return apiFetch<StatsRow[]>(`/api/v1/stats/referrers?site_id=${siteId}&days=${days}`);
 }
 
-export async function fetchBrowsers(siteId: string, days = 7) {
-  return apiFetch(`/api/v1/stats/browsers?site_id=${siteId}&days=${days}`);
+export async function fetchDevices(siteId: string, days = 7): Promise<StatsRow[]> {
+  return apiFetch<StatsRow[]>(`/api/v1/stats/devices?site_id=${siteId}&days=${days}`);
 }
 
-export async function fetchCountries(siteId: string, days = 7) {
-  return apiFetch(`/api/v1/stats/countries?site_id=${siteId}&days=${days}`);
+export async function fetchBrowsers(siteId: string, days = 7): Promise<StatsRow[]> {
+  return apiFetch<StatsRow[]>(`/api/v1/stats/browsers?site_id=${siteId}&days=${days}`);
+}
+
+export async function fetchCountries(siteId: string, days = 7): Promise<StatsRow[]> {
+  return apiFetch<StatsRow[]>(`/api/v1/stats/countries?site_id=${siteId}&days=${days}`);
 }
 
 export async function fetchCustomEvents(siteId: string, days = 7) {

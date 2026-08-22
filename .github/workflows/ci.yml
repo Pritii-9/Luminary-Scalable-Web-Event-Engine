@@ -27,12 +27,15 @@ jobs:
       - name: Lint with Ruff
         run: |
           # stop the build if there are Python syntax errors or undefined names
-          ruff check backend --select=E9,F63,F7,F82 --show-source
+          ruff check backend --select=E9,F63,F7,F82
           # exit-zero treats all errors as warnings
           ruff check backend --exit-zero
 
       - name: Run Backend Tests
         env:
+          APP_ENV: test
+          JWT_SECRET: ci-test-secret
+          DATABASE_URL: ""
           REDIS_URL: redis://localhost:6379/0
           CLICKHOUSE_HOST: localhost
           CLICKHOUSE_PORT: 8123
@@ -54,7 +57,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Run ESLint
         working-directory: frontend

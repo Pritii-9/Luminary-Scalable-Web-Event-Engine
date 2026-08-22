@@ -14,6 +14,8 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(unique=True, index=True, max_length=255)
     password_hash: str
+    full_name: Optional[str] = Field(default=None, max_length=255)
+    company_name: Optional[str] = Field(default=None, max_length=255)
     is_verified: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
@@ -107,6 +109,18 @@ def create_tables():
         
         try:
             session.execute(text("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT FALSE"))
+            session.commit()
+        except Exception:
+            session.rollback()
+
+        try:
+            session.execute(text("ALTER TABLE users ADD COLUMN full_name VARCHAR(255) DEFAULT NULL"))
+            session.commit()
+        except Exception:
+            session.rollback()
+
+        try:
+            session.execute(text("ALTER TABLE users ADD COLUMN company_name VARCHAR(255) DEFAULT NULL"))
             session.commit()
         except Exception:
             session.rollback()

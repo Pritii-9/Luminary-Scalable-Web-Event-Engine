@@ -1,11 +1,13 @@
 import os
 from pathlib import Path
 from pydantic_settings import BaseSettings
+from typing import Optional
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):
+    app_env: str = "development"
     redis_url: str = "redis://localhost:6379/0"
     redis_stream_key: str = "events:raw"
     redis_stream_maxlen: int = 100000
@@ -20,7 +22,7 @@ class Settings(BaseSettings):
     clickhouse_secure: bool = False
 
     # Auth / JWT
-    jwt_secret: str = "luminary-dev-secret-change-in-production"
+    jwt_secret: Optional[str] = None
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440  # 24 hours
 
@@ -50,3 +52,9 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+if not settings.jwt_secret:
+    raise RuntimeError("JWT_SECRET must be set")
+
+if settings.app_env.lower() == "production" and not settings.database_url:
+    raise RuntimeError("DATABASE_URL must be set when APP_ENV=production")
